@@ -1,8 +1,11 @@
 import type { Action } from "./actions";
 import type {
+  ActivityEvent,
   AppState,
+  Attachment,
   BidStage,
   ChangeOrder,
+  CoLineItem,
   Extraction,
   ExtractionKind,
   ExtractionPhase,
@@ -13,6 +16,7 @@ import type {
   RecurrenceCadence,
   Rfi,
   Role,
+  ScopeItem,
   Task,
   TaskTemplate,
   TensionItem,
@@ -22,6 +26,7 @@ import {
   cannedExtractionsFor,
   cannedProjectInfoFor,
 } from "@/lib/mock-data/plan-room";
+import { deriveScopeFromExtraction } from "@/lib/mock-data/scope";
 import {
   buildProcurement,
   buildMilestones,
@@ -112,6 +117,29 @@ function nextNumber<T extends { bidId: string }>(
   return format(count + 1);
 }
 
+/** Roll a change order's line items + markup into a single headline value. */
+function lineItemTotal(items: CoLineItem[] | undefined, markupPct?: number): number {
+  if (!items || items.length === 0) return 0;
+  const subtotal = items.reduce((sum, li) => sum + (li.amount || 0), 0);
+  return Math.round(subtotal * (1 + (markupPct ?? 0) / 100));
+}
+
+/** One activity event with a generated id. */
+function activityEvent(
+  kind: ActivityEvent["kind"],
+  body: string,
+  opts: { actorId?: string; actorName?: string } = {},
+): ActivityEvent {
+  return {
+    id: newId("act"),
+    at: nowIso(),
+    kind,
+    body,
+    actorId: opts.actorId,
+    actorName: opts.actorName,
+  };
+}
+
 /** AI-finding kind → the Tension Center type it becomes when promoted. */
 const KIND_TO_TENSION_TYPE: Record<ExtractionKind, TensionItemType> = {
   fact: "assumption",
@@ -151,6 +179,24 @@ function runExtractionPhase(
   );
   if (!additions.length) return state.extractions;
   return [...state.extractions, ...additions];
+}
+
+/**
+ * Auto-promote a bid's findings onto the scope board: every extraction without
+ * a scope item yet gets one, landing in the stage its source finding implies.
+ * Idempotent — a finding only ever spawns one scope item.
+ */
+function deriveScopeItems(state: AppState, bidId: string): ScopeItem[] {
+  const linked = new Set(
+    state.scopeItems.flatMap((s) =>
+      s.bidId === bidId ? s.sourceExtractionIds : [],
+    ),
+  );
+  const additions: ScopeItem[] = state.extractions
+    .filter((e) => e.bidId === bidId && !linked.has(e.id))
+    .map((e) => ({ ...deriveScopeFromExtraction(e), id: newId("sc") }));
+  if (!additions.length) return state.scopeItems;
+  return [...state.scopeItems, ...additions];
 }
 
 export function reducer(state: AppState, action: Action): AppState {
@@ -593,7 +639,10 @@ export function reducer(state: AppState, action: Action): AppState {
         }
       }
 
-      return { ...state, extractions, bids };
+      // Findings auto-promote onto the scope board as they're surfaced.
+      const scopeItems = deriveScopeItems({ ...state, extractions }, action.bidId);
+
+      return { ...state, extractions, bids, scopeItems };
     }
 
     case "ANSWER_EXTRACTION": {
@@ -685,7 +734,12 @@ export function reducer(state: AppState, action: Action): AppState {
         ? runExtractionPhase(state, action.bidId, "preBidCommit")
         : state.extractions;
 
-      return { ...state, bids, extractions };
+      // The Phase-2 ops-risk findings join the scope board as planning items.
+      const scopeItems = fires
+        ? deriveScopeItems({ ...state, extractions }, action.bidId)
+        : state.scopeItems;
+
+      return { ...state, bids, extractions, scopeItems };
     }
 
     case "COMPLETE_INTAKE_STEP": {
@@ -720,10 +774,69 @@ export function reducer(state: AppState, action: Action): AppState {
               : b,
           );
         }
-        next = { ...next, extractions, bids };
+        next = {
+          ...next,
+          extractions,
+          bids,
+          scopeItems: deriveScopeItems({ ...next, extractions }, action.bidId),
+        };
       }
 
       return next;
+    }
+
+    case "DERIVE_SCOPE_ITEMS": {
+      return { ...state, scopeItems: deriveScopeItems(state, action.bidId) };
+    }
+
+    case "SET_SCOPE_STAGE": {
+      return {
+        ...state,
+        scopeItems: state.scopeItems.map((s) =>
+          s.id === action.scopeItemId ? { ...s, stage: action.stage } : s,
+        ),
+      };
+    }
+
+    case "UPDATE_SCOPE_ITEM": {
+      return {
+        ...state,
+        scopeItems: state.scopeItems.map((s) =>
+          s.id === action.scopeItemId ? { ...s, ...action.patch } : s,
+        ),
+      };
+    }
+
+    case "PROMOTE_SCOPE_TO_TENSION": {
+      const item = state.scopeItems.find((s) => s.id === action.scopeItemId);
+      if (!item || item.tensionItemId) return state;
+
+      const tensionId = newId("ti");
+      // Ops-owned scope challenges read as risks; everything else as a scope gap.
+      const type: TensionItemType = item.audience === "ops" ? "risk" : "scopeGap";
+      const tensionItem: TensionItem = {
+        id: tensionId,
+        bidId: item.bidId,
+        type,
+        title: item.title,
+        detail: item.sourceRef
+          ? `${item.detail}\n\nFrom the scope board — ${item.sourceRef}`
+          : `${item.detail}\n\nFrom the scope board.`,
+        raisedById: action.raisedById,
+        createdAt: nowIso(),
+        status: "open" as const,
+        comments: [],
+      };
+
+      return {
+        ...state,
+        tensionItems: [...state.tensionItems, tensionItem],
+        scopeItems: state.scopeItems.map((s) =>
+          s.id === action.scopeItemId
+            ? { ...s, stage: "challenged" as const, tensionItemId: tensionId }
+            : s,
+        ),
+      };
     }
 
     case "UPDATE_PROCUREMENT_ITEM": {
@@ -807,13 +920,23 @@ export function reducer(state: AppState, action: Action): AppState {
         subject: action.subject,
         question: action.question,
         origin: action.origin,
-        planRef: action.planRef,
         raisedById: action.raisedById,
         createdAt: nowIso(),
         status: "draft",
-        costImpactLikely: action.costImpactLikely,
+        priority: "normal",
+        ballInCourt: "weingartner",
+        ...action.patch,
       };
       return { ...state, rfis: [rfi, ...state.rfis] };
+    }
+
+    case "UPDATE_RFI": {
+      return {
+        ...state,
+        rfis: state.rfis.map((r) =>
+          r.id === action.rfiId ? { ...r, ...action.patch } : r,
+        ),
+      };
     }
 
     case "UPDATE_RFI_STATUS": {
@@ -828,6 +951,9 @@ export function reducer(state: AppState, action: Action): AppState {
                   action.status === "submitted" && !r.submittedAt
                     ? nowIso()
                     : r.submittedAt,
+                // Submitting puts the ball in the GC/design team's court.
+                ballInCourt:
+                  action.status === "submitted" ? "gc" : r.ballInCourt,
               }
             : r,
         ),
@@ -845,7 +971,47 @@ export function reducer(state: AppState, action: Action): AppState {
                 answer: action.answer,
                 answeredBy: action.answeredBy,
                 answeredAt: nowIso(),
+                // Answer's back — the next move (close / convert) is ours.
+                ballInCourt: "weingartner",
               }
+            : r,
+        ),
+      };
+    }
+
+    case "ADD_RFI_NOTE": {
+      return {
+        ...state,
+        rfis: state.rfis.map((r) =>
+          r.id === action.rfiId
+            ? {
+                ...r,
+                activity: [
+                  ...(r.activity ?? []),
+                  activityEvent("note", action.body, {
+                    actorId: action.authorId,
+                  }),
+                ],
+              }
+            : r,
+        ),
+      };
+    }
+
+    case "ADD_RFI_ATTACHMENT": {
+      const attachment: Attachment = {
+        id: newId("att"),
+        name: action.name,
+        kind: action.kind,
+        note: action.note,
+        addedById: action.addedById,
+        addedAt: nowIso(),
+      };
+      return {
+        ...state,
+        rfis: state.rfis.map((r) =>
+          r.id === action.rfiId
+            ? { ...r, attachments: [...(r.attachments ?? []), attachment] }
             : r,
         ),
       };
@@ -865,6 +1031,12 @@ export function reducer(state: AppState, action: Action): AppState {
           nowIso(),
         ),
         id: coId,
+        // Carry the field's read on dollars / days forward into the CO.
+        scheduleImpactDays: rfi.scheduleImpactDays,
+        costAmount: rfi.costImpactEstimate,
+        directedTo: rfi.directedTo,
+        ballInCourt: "weingartner",
+        reason: "designChange",
       };
       return {
         ...state,
@@ -878,6 +1050,8 @@ export function reducer(state: AppState, action: Action): AppState {
     }
 
     case "ADD_CHANGE_ORDER": {
+      const lineItems = action.patch?.lineItems;
+      const markupPct = action.patch?.markupPct;
       const co: ChangeOrder = {
         id: newId("co"),
         bidId: action.bidId,
@@ -891,7 +1065,14 @@ export function reducer(state: AppState, action: Action): AppState {
         ownerRole: action.ownerRole,
         createdAt: nowIso(),
         status: "draft",
-        costAmount: action.costAmount,
+        pricingMethod: "lumpSum",
+        ballInCourt: "weingartner",
+        ...action.patch,
+        // A breakdown, when present, is the source of truth for the headline.
+        costAmount:
+          lineItems && lineItems.length > 0
+            ? lineItemTotal(lineItems, markupPct)
+            : action.costAmount,
       };
       return { ...state, changeOrders: [co, ...state.changeOrders] };
     }
@@ -902,15 +1083,61 @@ export function reducer(state: AppState, action: Action): AppState {
         changeOrders: state.changeOrders.map((co) => {
           if (co.id !== action.coId) return co;
           const next = { ...co, ...action.patch };
+          // A change to the breakdown or markup re-rolls the headline value.
+          if ("lineItems" in action.patch || "markupPct" in action.patch) {
+            if (next.lineItems && next.lineItems.length > 0) {
+              next.costAmount = lineItemTotal(next.lineItems, next.markupPct);
+            }
+          }
           // Stamp lifecycle timestamps as the status advances.
           if (action.patch.status === "submitted" && !next.submittedAt) {
             next.submittedAt = nowIso();
+            next.ballInCourt = "gc";
           }
           if (action.patch.status === "approved" && !next.approvedAt) {
             next.approvedAt = nowIso();
+            next.ballInCourt = "weingartner";
           }
           return next;
         }),
+      };
+    }
+
+    case "ADD_CO_NOTE": {
+      return {
+        ...state,
+        changeOrders: state.changeOrders.map((co) =>
+          co.id === action.coId
+            ? {
+                ...co,
+                activity: [
+                  ...(co.activity ?? []),
+                  activityEvent("note", action.body, {
+                    actorId: action.authorId,
+                  }),
+                ],
+              }
+            : co,
+        ),
+      };
+    }
+
+    case "ADD_CO_ATTACHMENT": {
+      const attachment: Attachment = {
+        id: newId("att"),
+        name: action.name,
+        kind: action.kind,
+        note: action.note,
+        addedById: action.addedById,
+        addedAt: nowIso(),
+      };
+      return {
+        ...state,
+        changeOrders: state.changeOrders.map((co) =>
+          co.id === action.coId
+            ? { ...co, attachments: [...(co.attachments ?? []), attachment] }
+            : co,
+        ),
       };
     }
 

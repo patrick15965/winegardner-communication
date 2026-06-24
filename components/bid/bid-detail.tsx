@@ -14,6 +14,7 @@ import {
   tasksForBid,
   openExtractionsForBid,
   openRfisForBid,
+  scopeSummary,
   isProject,
 } from "@/lib/store/selectors";
 import { STAGE_ACCENT, STAGE_LABEL, STAGE_ORDER, currency } from "@/lib/format";
@@ -23,6 +24,7 @@ import { BidWorkflow } from "@/components/bid/bid-workflow";
 import { BidRfis } from "@/components/bid/bid-rfis";
 import { TensionCenter } from "@/components/tension/tension-center";
 import { PlanRoom } from "@/components/plan-room/plan-room";
+import { ScopeBoard } from "@/components/scope/scope-board";
 import { HandoffSequence } from "@/components/handoff/handoff-sequence";
 import { BidTasks } from "@/components/tasks/bid-tasks";
 import { BidStandards } from "@/components/standards/bid-standards";
@@ -31,6 +33,7 @@ import { StageMoveMenu } from "@/components/pipeline/stage-move-menu";
 const VALID_TABS = [
   "overview",
   "planroom",
+  "scope",
   "tension",
   "rfis",
   "handoff",
@@ -64,6 +67,7 @@ export function BidDetail({ bidId }: { bidId: string }) {
 
   const openConcerns = openConcernsForBid(state, bid.id);
   const openFindings = openExtractionsForBid(state, bid.id).length;
+  const scope = scopeSummary(state, bid.id);
   const openRfis = openRfisForBid(state, bid.id).length;
   const handoffCount = handoffForBid(state, bid.id).length;
   const taskCount = tasksForBid(state, bid.id).filter(
@@ -76,7 +80,11 @@ export function BidDetail({ bidId }: { bidId: string }) {
   const stageIdx = STAGE_ORDER.indexOf(bid.stage);
   const showTension =
     stageIdx <= STAGE_ORDER.indexOf("submitted") || openConcerns > 0;
-  const activeTab = tab === "tension" && !showTension ? "overview" : tab;
+  const showScope = scope.total > 0;
+  const activeTab =
+    (tab === "tension" && !showTension) || (tab === "scope" && !showScope)
+      ? "overview"
+      : tab;
 
   return (
     <div className="space-y-5">
@@ -133,6 +141,16 @@ export function BidDetail({ bidId }: { bidId: string }) {
               </span>
             )}
           </TabsTrigger>
+          {scope.total > 0 && (
+            <TabsTrigger value="scope" className="gap-1.5">
+              Scope
+              {scope.openItems > 0 && (
+                <span className="rounded-full bg-violet-500/15 px-1.5 text-[10px] font-semibold text-violet-600 dark:text-violet-400">
+                  {scope.openItems}
+                </span>
+              )}
+            </TabsTrigger>
+          )}
           {showTension && (
             <TabsTrigger value="tension" className="gap-1.5">
               Pre-Bid Review
@@ -171,6 +189,11 @@ export function BidDetail({ bidId }: { bidId: string }) {
         <TabsContent value="planroom" className="mt-4">
           <PlanRoom bid={bid} />
         </TabsContent>
+        {showScope && (
+          <TabsContent value="scope" className="mt-4">
+            <ScopeBoard bid={bid} />
+          </TabsContent>
+        )}
         {showTension && (
           <TabsContent value="tension" className="mt-4">
             <TensionCenter bid={bid} />

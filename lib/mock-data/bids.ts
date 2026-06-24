@@ -68,6 +68,14 @@ export const bids: Bid[] = [
     stage: "awarded",
     createdAt: "2026-04-10T16:00:00.000Z",
     awardedAt: "2026-06-18T16:00:00.000Z",
+    detected: [
+      { label: "Project", value: "Purple Line Station 3", sourceRef: "Plans — title block" },
+      { label: "Scope", value: "~3,400 cy cast-in-place structural concrete", sourceRef: "S-200 series / concrete schedule" },
+      { label: "Location", value: "Los Angeles, CA", sourceRef: "Plans — title block" },
+      { label: "Trade", value: "Concrete", sourceRef: "Spec §03 30 00" },
+      { label: "Region / wage", value: "CA DIR prevailing wage + Metro PLA", sourceRef: "Front-end §00 73 00" },
+      { label: "Bid due", value: "May 15, 2026", sourceRef: "Invitation to bid" },
+    ],
   },
   {
     id: "bid-lincoln-paver",

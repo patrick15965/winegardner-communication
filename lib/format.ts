@@ -13,9 +13,17 @@ import type {
   ProcurementCategory,
   ProcurementStatus,
   RecurrenceCadence,
+  BallInCourt,
+  CoCostCategory,
+  CoPricingMethod,
+  CoReason,
+  RfiDiscipline,
   RfiOrigin,
+  RfiPriority,
   RfiStatus,
   Role,
+  ScopeDisposition,
+  ScopeStage,
   StandardCategory,
   TaskStatus,
   TensionItemType,
@@ -370,6 +378,71 @@ export const RECURRENCE_ORDER: RecurrenceCadence[] = [
   "monthly",
 ];
 
+// ── Scope Board ──────────────────────────────────────────────────────────
+
+export const SCOPE_STAGE_LABEL: Record<ScopeStage, string> = {
+  extracted: "Extracted",
+  contextualized: "Contextualized",
+  planned: "Planned",
+  challenged: "Challenged",
+  approved: "Approved",
+};
+
+/** One-line caption per column — what has to happen for an item to move on. */
+export const SCOPE_STAGE_CAPTION: Record<ScopeStage, string> = {
+  extracted: "AI pulled it off the plans",
+  contextualized: "Estimating: quantity + assumptions",
+  planned: "Ops: method, rate & crew",
+  challenged: "In pre-bid review",
+  approved: "Locked into the bid",
+};
+
+export const SCOPE_STAGE_ORDER: ScopeStage[] = [
+  "extracted",
+  "contextualized",
+  "planned",
+  "challenged",
+  "approved",
+];
+
+export const SCOPE_STAGE_ACCENT: Record<ScopeStage, string> = {
+  extracted: "bg-slate-500/10 text-slate-600 dark:text-slate-300 border-slate-500/20",
+  contextualized: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20",
+  planned: "bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/20",
+  challenged: "bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30",
+  approved: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20",
+};
+
+/** Solid dot color for the column headers. */
+export const SCOPE_STAGE_DOT: Record<ScopeStage, string> = {
+  extracted: "bg-slate-400",
+  contextualized: "bg-amber-500",
+  planned: "bg-sky-500",
+  challenged: "bg-orange-500",
+  approved: "bg-emerald-500",
+};
+
+export const SCOPE_DISPOSITION_LABEL: Record<ScopeDisposition, string> = {
+  undecided: "Undecided",
+  included: "Included",
+  excluded: "Excluded",
+  alternate: "Alternate",
+};
+
+export const SCOPE_DISPOSITION_ACCENT: Record<ScopeDisposition, string> = {
+  undecided: "bg-slate-500/10 text-slate-600 dark:text-slate-300 border-slate-500/20",
+  included: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20",
+  excluded: "bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/20",
+  alternate: "bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/20",
+};
+
+export const SCOPE_DISPOSITION_ORDER: ScopeDisposition[] = [
+  "undecided",
+  "included",
+  "excluded",
+  "alternate",
+];
+
 // ── RFIs & Change Orders ───────────────────────────────────────────────────
 
 export const RFI_STATUS_LABEL: Record<RfiStatus, string> = {
@@ -427,3 +500,128 @@ export const CO_ORIGIN_LABEL: Record<CoOrigin, string> = {
   fieldTM: "From T&M ticket",
   manual: "Manual",
 };
+
+// ── RFI / CO depth: priority, discipline, ball-in-court, reason, pricing ─────
+
+export const RFI_PRIORITY_LABEL: Record<RfiPriority, string> = {
+  low: "Low",
+  normal: "Normal",
+  high: "High",
+  urgent: "Urgent",
+};
+
+export const RFI_PRIORITY_ACCENT: Record<RfiPriority, string> = {
+  low: "bg-slate-500/10 text-slate-600 dark:text-slate-300 border-slate-500/20",
+  normal: "bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/20",
+  high: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20",
+  urgent: "bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/20",
+};
+
+export const RFI_PRIORITY_ORDER: RfiPriority[] = [
+  "low",
+  "normal",
+  "high",
+  "urgent",
+];
+
+export const RFI_DISCIPLINE_LABEL: Record<RfiDiscipline, string> = {
+  architectural: "Architectural",
+  structural: "Structural",
+  civil: "Civil",
+  geotech: "Geotechnical",
+  mechanical: "Mechanical",
+  electrical: "Electrical",
+  other: "Other",
+};
+
+export const RFI_DISCIPLINE_ORDER: RfiDiscipline[] = [
+  "architectural",
+  "structural",
+  "civil",
+  "geotech",
+  "mechanical",
+  "electrical",
+  "other",
+];
+
+export const BALL_IN_COURT_LABEL: Record<BallInCourt, string> = {
+  weingartner: "Weingartner",
+  gc: "General Contractor",
+  designTeam: "Design Team",
+};
+
+export const BALL_IN_COURT_ACCENT: Record<BallInCourt, string> = {
+  weingartner:
+    "bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/20",
+  gc: "bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/20",
+  designTeam:
+    "bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/20",
+};
+
+export const CO_REASON_LABEL: Record<CoReason, string> = {
+  ownerRequest: "Owner request",
+  designChange: "Design change",
+  unforeseen: "Unforeseen condition",
+  fieldCondition: "Field condition",
+  codeCompliance: "Code / inspector",
+  weather: "Weather",
+  other: "Other",
+};
+
+export const CO_REASON_ORDER: CoReason[] = [
+  "ownerRequest",
+  "designChange",
+  "unforeseen",
+  "fieldCondition",
+  "codeCompliance",
+  "weather",
+  "other",
+];
+
+export const CO_PRICING_LABEL: Record<CoPricingMethod, string> = {
+  lumpSum: "Lump sum",
+  tm: "Time & material",
+  unitPrice: "Unit price",
+};
+
+export const CO_PRICING_ORDER: CoPricingMethod[] = [
+  "lumpSum",
+  "tm",
+  "unitPrice",
+];
+
+export const CO_COST_CATEGORY_LABEL: Record<CoCostCategory, string> = {
+  labor: "Labor",
+  material: "Material",
+  equipment: "Equipment",
+  subcontractor: "Subcontractor",
+  other: "Other",
+};
+
+export const CO_COST_CATEGORY_ORDER: CoCostCategory[] = [
+  "labor",
+  "material",
+  "equipment",
+  "subcontractor",
+  "other",
+];
+
+export const CO_COST_CATEGORY_ACCENT: Record<CoCostCategory, string> = {
+  labor: "bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/20",
+  material:
+    "bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/20",
+  equipment:
+    "bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/20",
+  subcontractor:
+    "bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-500/20",
+  other:
+    "bg-slate-500/10 text-slate-600 dark:text-slate-300 border-slate-500/20",
+};
+
+/** "Jun 24" — compact day label for timelines. */
+export function dayLabel(iso?: string): string {
+  if (!iso) return "—";
+  const d = parseISO(iso);
+  if (!isValid(d)) return "—";
+  return format(d, "MMM d");
+}

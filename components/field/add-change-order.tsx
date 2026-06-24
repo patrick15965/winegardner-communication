@@ -25,28 +25,53 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAppStore } from "@/lib/store/store-context";
-import { CO_ORIGIN_LABEL } from "@/lib/format";
-import type { Bid, CoOrigin } from "@/lib/store/types";
+import {
+  CO_ORIGIN_LABEL,
+  CO_REASON_LABEL,
+  CO_REASON_ORDER,
+  CO_PRICING_LABEL,
+  CO_PRICING_ORDER,
+} from "@/lib/format";
+import type {
+  Bid,
+  CoOrigin,
+  CoPricingMethod,
+  CoReason,
+} from "@/lib/store/types";
 
 // Field-raised COs come from a T&M ticket or a manual entry; "from RFI" is
 // created by converting an RFI, not here.
 const ORIGINS: CoOrigin[] = ["fieldTM", "manual"];
 
+function dateInputToIso(v: string): string | undefined {
+  return v ? new Date(`${v}T17:00:00.000Z`).toISOString() : undefined;
+}
+
 export function AddChangeOrder({ bid }: { bid: Bid }) {
   const { addChangeOrder } = useAppStore();
   const [open, setOpen] = useState(false);
   const [origin, setOrigin] = useState<CoOrigin>("fieldTM");
+  const [reason, setReason] = useState<CoReason>("unforeseen");
+  const [pricing, setPricing] = useState<CoPricingMethod>("lumpSum");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [cost, setCost] = useState("");
   const [tmTicketRef, setTmTicketRef] = useState("");
+  const [directedTo, setDirectedTo] = useState(bid.gc ?? "");
+  const [needBy, setNeedBy] = useState("");
+  const [schedDays, setSchedDays] = useState("");
 
   function reset() {
     setOrigin("fieldTM");
+    setReason("unforeseen");
+    setPricing("lumpSum");
     setTitle("");
     setDescription("");
     setCost("");
     setTmTicketRef("");
+    setDirectedTo(bid.gc ?? "");
+    setNeedBy("");
+    setSchedDays("");
   }
 
   function submit() {
@@ -62,6 +87,13 @@ export function AddChangeOrder({ bid }: { bid: Bid }) {
         origin === "fieldTM" && tmTicketRef.trim()
           ? tmTicketRef.trim()
           : undefined,
+      patch: {
+        reason,
+        pricingMethod: pricing,
+        directedTo: directedTo.trim() || undefined,
+        responseNeededBy: dateInputToIso(needBy),
+        scheduleImpactDays: schedDays ? Number(schedDays) : undefined,
+      },
     });
     toast.success("Change order created");
     reset();
@@ -81,32 +113,53 @@ export function AddChangeOrder({ bid }: { bid: Bid }) {
           <Plus className="size-4" /> New change order
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>New change order</DialogTitle>
           <DialogDescription>
             Pull a field T&amp;M ticket into a client-facing change order, or
-            enter one manually. It lands as a draft for the PM to cost and send.
+            enter one manually. It lands as a draft for the PM to price out and
+            send — build the cost breakdown on the detail page.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label>Origin</Label>
-            <Select
-              value={origin}
-              onValueChange={(v) => setOrigin(v as CoOrigin)}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {ORIGINS.map((o) => (
-                  <SelectItem key={o} value={o}>
-                    {CO_ORIGIN_LABEL[o]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Origin</Label>
+              <Select
+                value={origin}
+                onValueChange={(v) => setOrigin(v as CoOrigin)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ORIGINS.map((o) => (
+                    <SelectItem key={o} value={o}>
+                      {CO_ORIGIN_LABEL[o]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Reason</Label>
+              <Select
+                value={reason}
+                onValueChange={(v) => setReason(v as CoReason)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CO_REASON_ORDER.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {CO_REASON_LABEL[r]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           {origin === "fieldTM" && (
             <div className="space-y-1.5">
@@ -135,14 +188,62 @@ export function AddChangeOrder({ bid }: { bid: Bid }) {
               rows={3}
             />
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Pricing method</Label>
+              <Select
+                value={pricing}
+                onValueChange={(v) => setPricing(v as CoPricingMethod)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CO_PRICING_ORDER.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {CO_PRICING_LABEL[p]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Estimated cost ($)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={cost}
+                onChange={(e) => setCost(e.target.value)}
+                placeholder="Optional"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Directed to</Label>
+              <Input
+                value={directedTo}
+                onChange={(e) => setDirectedTo(e.target.value)}
+                placeholder="GC / owner"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Approval needed by</Label>
+              <Input
+                type="date"
+                value={needBy}
+                onChange={(e) => setNeedBy(e.target.value)}
+              />
+            </div>
+          </div>
           <div className="space-y-1.5">
-            <Label>Estimated cost ($)</Label>
+            <Label>Schedule impact (days)</Label>
             <Input
               type="number"
               min={0}
-              value={cost}
-              onChange={(e) => setCost(e.target.value)}
-              placeholder="Optional — PM can tune later"
+              value={schedDays}
+              onChange={(e) => setSchedDays(e.target.value)}
+              placeholder="Optional"
             />
           </div>
         </div>

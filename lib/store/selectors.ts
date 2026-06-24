@@ -1,4 +1,5 @@
 import type {
+  ActivityEvent,
   AppState,
   Bid,
   BidDocument,
@@ -15,6 +16,9 @@ import type {
   ProjectPlan,
   Rfi,
   Role,
+  ScopeItem,
+  ScopeStage,
+  SovLine,
   StandardNote,
   TensionItem,
 } from "./types";
@@ -260,6 +264,49 @@ export function totalOpenExtractions(state: AppState): number {
   return state.extractions.filter((e) => e.status === "open").length;
 }
 
+// ── Scope Board ──────────────────────────────────────────────────────────
+
+export function scopeItemsForBid(state: AppState, bidId: string): ScopeItem[] {
+  return state.scopeItems.filter((s) => s.bidId === bidId);
+}
+
+/** Findings on a bid that haven't been promoted onto the scope board yet. */
+export function unpromotedExtractionCount(
+  state: AppState,
+  bidId: string,
+): number {
+  const linked = new Set(
+    scopeItemsForBid(state, bidId).flatMap((s) => s.sourceExtractionIds),
+  );
+  return extractionsForBid(state, bidId).filter((e) => !linked.has(e.id)).length;
+}
+
+export interface ScopeSummary {
+  total: number;
+  byStage: Record<ScopeStage, number>;
+  /** Items not yet approved — the open work on the board. */
+  openItems: number;
+  challenged: number;
+}
+
+export function scopeSummary(state: AppState, bidId: string): ScopeSummary {
+  const items = scopeItemsForBid(state, bidId);
+  const byStage: Record<ScopeStage, number> = {
+    extracted: 0,
+    contextualized: 0,
+    planned: 0,
+    challenged: 0,
+    approved: 0,
+  };
+  for (const it of items) byStage[it.stage] += 1;
+  return {
+    total: items.length,
+    byStage,
+    openItems: items.filter((s) => s.stage !== "approved").length,
+    challenged: byStage.challenged,
+  };
+}
+
 // ── Intake Pipeline ──────────────────────────────────────────────────────
 
 export interface IntakeStepView {
@@ -362,6 +409,15 @@ export function milestonesForBid(
   bidId: string,
 ): ProjectMilestone[] {
   return state.projectMilestones.filter((m) => m.bidId === bidId);
+}
+
+export function sovLinesForBid(state: AppState, bidId: string): SovLine[] {
+  return state.sovLines.filter((l) => l.bidId === bidId);
+}
+
+/** Sum of a set of SOV lines — compared against the awarded bid value. */
+export function sovTotal(lines: SovLine[]): number {
+  return lines.reduce((sum, l) => sum + l.scheduledValue, 0);
 }
 
 export function projectPlanForBid(
@@ -775,4 +831,131 @@ export function changeOrdersByPerson(state: AppState): ChangeOrdersByPerson[] {
     });
   }
   return rows.sort((a, b) => b.openValue - a.openValue);
+}
+
+// ── Single-record lookups + the detail-view derivations ─────────────────────
+
+export function rfiById(state: AppState, id: string): Rfi | undefined {
+  return state.rfis.find((r) => r.id === id);
+}
+
+export function changeOrderById(
+  state: AppState,
+  id: string,
+): ChangeOrder | undefined {
+  return state.changeOrders.find((co) => co.id === id);
+}
+
+/** Sum of a CO's line items before markup. */
+export function coLineSubtotal(co: ChangeOrder): number {
+  return (co.lineItems ?? []).reduce((sum, li) => sum + (li.amount || 0), 0);
+}
+
+/** The overhead & profit dollars applied on top of the subtotal. */
+export function coMarkupAmount(co: ChangeOrder): number {
+  return Math.round(coLineSubtotal(co) * ((co.markupPct ?? 0) / 100));
+}
+
+/** Subtotal + markup. Falls back to the entered headline when there's no breakdown. */
+export function coComputedTotal(co: ChangeOrder): number {
+  if (co.lineItems && co.lineItems.length > 0) {
+    return coLineSubtotal(co) + coMarkupAmount(co);
+  }
+  return co.costAmount ?? 0;
+}
+
+/** Days until (positive) / since (negative) a response-by date. */
+export function daysUntil(iso?: string, nowMs: number = Date.now()): number | null {
+  if (!iso) return null;
+  return Math.ceil((new Date(iso).getTime() - nowMs) / 86_400_000);
+}
+
+/**
+ * The full RFI history — lifecycle stamps derived from the record's own
+ * timestamps, merged with any manually-logged notes, oldest first. Derived so
+ * the timeline can never disagree with the status.
+ */
+export function rfiTimeline(rfi: Rfi): ActivityEvent[] {
+  const events: ActivityEvent[] = [];
+  events.push({
+    id: `${rfi.id}-created`,
+    at: rfi.createdAt,
+    kind: "created",
+    actorId: rfi.raisedById,
+    body: `${rfi.number} raised`,
+  });
+  if (rfi.submittedAt) {
+    events.push({
+      id: `${rfi.id}-submitted`,
+      at: rfi.submittedAt,
+      kind: "submitted",
+      actorId: rfi.raisedById,
+      body: rfi.directedTo
+        ? `Submitted to ${rfi.directedTo}`
+        : "Submitted for response",
+    });
+  }
+  if (rfi.answeredAt) {
+    events.push({
+      id: `${rfi.id}-answered`,
+      at: rfi.answeredAt,
+      kind: "answered",
+      actorName: rfi.answeredBy,
+      body: rfi.answer ?? "Response received",
+    });
+  }
+  if (rfi.status === "converted" && rfi.linkedChangeOrderId) {
+    events.push({
+      id: `${rfi.id}-converted`,
+      at: rfi.answeredAt ?? rfi.createdAt,
+      kind: "converted",
+      body: "Converted to a change order",
+    });
+  }
+  events.push(...(rfi.activity ?? []));
+  return events.sort((a, b) => a.at.localeCompare(b.at));
+}
+
+/** The full CO history — derived lifecycle stamps merged with manual notes. */
+export function coTimeline(co: ChangeOrder): ActivityEvent[] {
+  const events: ActivityEvent[] = [];
+  events.push({
+    id: `${co.id}-created`,
+    at: co.createdAt,
+    kind: "created",
+    actorId: co.raisedById,
+    body: co.sourceRfiId ? `${co.number} created from an RFI` : `${co.number} raised`,
+  });
+  if (co.submittedAt) {
+    events.push({
+      id: `${co.id}-submitted`,
+      at: co.submittedAt,
+      kind: "submitted",
+      body: co.directedTo
+        ? `Submitted to ${co.directedTo} for approval`
+        : "Submitted for approval",
+    });
+  }
+  if (co.approvedAt) {
+    events.push({
+      id: `${co.id}-approved`,
+      at: co.approvedAt,
+      kind: co.status === "rejected" ? "statusChange" : "approved",
+      actorName: co.approvedBy,
+      body:
+        co.status === "rejected"
+          ? "Rejected by the GC"
+          : `Approved${co.approvedBy ? ` by ${co.approvedBy}` : ""}`,
+    });
+  }
+  if (co.status === "billed") {
+    events.push({
+      id: `${co.id}-billed`,
+      at: co.approvedAt ?? co.createdAt,
+      kind: "billed",
+      body: "Billed through to accounting",
+    });
+  }
+  events.push(...(co.activity ?? []));
+  return events.sort((a, b) => a.at.localeCompare(b.at));
 }

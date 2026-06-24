@@ -7,9 +7,11 @@ import { handoffItems, handoffMeetings } from "./handoff";
 import { tasks } from "./tasks";
 import { taskTemplates } from "./task-templates";
 import { bidDocuments, extractions } from "./plan-room";
+import { scopeItems } from "./scope";
 import { intakeStepRuns } from "./intake";
 import { seedProjectData } from "./projects";
 import { rfis, changeOrders } from "./change-orders";
+import { sovLines } from "./sov";
 
 /** Deterministic seed state — also the SSR snapshot. */
 export function createSeedState(): AppState {
@@ -28,11 +30,13 @@ export function createSeedState(): AppState {
     taskTemplates,
     bidDocuments,
     extractions,
+    scopeItems,
     intakeSteps: intakeStepRuns,
     reviewMeetings: {},
     procurementItems,
     projectMilestones,
     projectPlans,
+    sovLines,
     rfis,
     changeOrders,
     currentUserId: DEFAULT_USER_ID,

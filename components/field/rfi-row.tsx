@@ -1,8 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
-import { Link2, ArrowRightLeft, Send, CheckCircle2 } from "lucide-react";
+import {
+  Link2,
+  ArrowRightLeft,
+  Send,
+  CheckCircle2,
+  ArrowRight,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,7 +65,12 @@ export function RfiRow({ rfi }: { rfi: Rfi }) {
               <span className="font-mono text-xs text-muted-foreground">
                 {rfi.number}
               </span>
-              <span className="text-sm font-medium">{rfi.subject}</span>
+              <Link
+                href={`/field/${rfi.bidId}/rfi/${rfi.id}`}
+                className="text-sm font-medium hover:underline"
+              >
+                {rfi.subject}
+              </Link>
             </div>
             <p className="text-xs text-muted-foreground">
               {RFI_ORIGIN_LABEL[rfi.origin]} · raised by{" "}
@@ -148,6 +160,16 @@ export function RfiRow({ rfi }: { rfi: Rfi }) {
               <ArrowRightLeft className="size-3.5" /> Change order created
             </span>
           )}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ml-auto gap-1.5 text-muted-foreground"
+            asChild
+          >
+            <Link href={`/field/${rfi.bidId}/rfi/${rfi.id}`}>
+              Open <ArrowRight className="size-3.5" />
+            </Link>
+          </Button>
         </div>
       </CardContent>
 

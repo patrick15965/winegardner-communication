@@ -288,6 +288,50 @@ export interface Extraction {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
+// Scope Items — the unit of scope itself, threaded across a lifecycle. Every
+// finding the AI pulls off the plans (Extraction) auto-promotes into a scope
+// item the team walks left→right: extracted by the AI → contextualized by
+// estimating (qty + assumptions) → planned by ops (method + rate + crew) →
+// challenged in pre-bid review → approved and locked into the bid. The Plan
+// Room stays the raw document+findings feed; this is the process-centric board
+// those findings flow into.
+// ──────────────────────────────────────────────────────────────────────────
+
+export type ScopeStage =
+  | "extracted" // the AI pulled it off the documents — needs eyes
+  | "contextualized" // estimating attached quantity + assumptions
+  | "planned" // ops attached method / production rate / crew
+  | "challenged" // a concern is open on it in the Tension Center
+  | "approved"; // signed off — locked into the bid scope
+
+/** Where a scope item lands: in the base bid, out of trade, or an add alternate. */
+export type ScopeDisposition = "undecided" | "included" | "excluded" | "alternate";
+
+export interface ScopeItem {
+  id: string;
+  bidId: string;
+  title: string;
+  detail: string;
+  /** Where in the documents it came from, e.g. "A-201 wall schedule". */
+  sourceRef?: string;
+  /** The finding(s) this scope item was promoted from — traceability back to the plans. */
+  sourceExtractionIds: string[];
+  /** Who owns the next move, carried from the source finding. */
+  audience: ExtractionAudience;
+  stage: ScopeStage;
+  disposition: ScopeDisposition;
+  /** Estimating context — the "what" and "how much". */
+  quantity?: string;
+  assumption?: string;
+  /** Ops plan — the "how". */
+  productionRate?: string;
+  crewNote?: string;
+  /** Set when the item is challenged into the Tension Center for sign-off. */
+  tensionItemId?: string;
+  createdAt: string; // ISO
+}
+
+// ──────────────────────────────────────────────────────────────────────────
 // RFIs & Change Orders — the one loop the field lives and dies on. An RFI can
 // be *born* from a Plan Room scope-gap during estimating ("draft it for me"),
 // travel with the bid, come back answered after award, and — when it carries a
@@ -296,8 +340,68 @@ export interface Extraction {
 // person instead of $600K sitting in limbo on a spreadsheet.
 // ──────────────────────────────────────────────────────────────────────────
 
+/**
+ * A mock attachment riding along with an RFI or Change Order — a field photo, a
+ * marked-up sheet, a T&M ticket scan. No real upload; the name + caption are
+ * enough to make the paper trail read true.
+ */
+export type AttachmentKind = "photo" | "pdf" | "doc" | "other";
+
+export interface Attachment {
+  id: string;
+  name: string;
+  kind: AttachmentKind;
+  /** What it shows — caption shown under the file. */
+  note?: string;
+  addedById?: string;
+  addedAt?: string; // ISO
+}
+
+/**
+ * One entry on an RFI / CO history. The lifecycle stamps (created, submitted,
+ * answered, approved…) are *derived* from the record's timestamps; only manual
+ * notes are stored here, so the timeline can never drift from the status.
+ */
+export type ActivityKind =
+  | "created"
+  | "submitted"
+  | "answered"
+  | "statusChange"
+  | "converted"
+  | "approved"
+  | "billed"
+  | "note"
+  | "attachment";
+
+export interface ActivityEvent {
+  id: string;
+  at: string; // ISO
+  kind: ActivityKind;
+  /** Internal author, if a person. */
+  actorId?: string;
+  /** External author (GC / AOR) when there's no person record. */
+  actorName?: string;
+  body: string;
+}
+
+/** Whose move it is right now — the single most-asked field question. */
+export type BallInCourt = "weingartner" | "gc" | "designTeam";
+
 /** Where an RFI came from. `planGap` = drafted from a Plan Room finding. */
 export type RfiOrigin = "planGap" | "field" | "manual";
+
+/** Urgency of an RFI — drives the response-by chase and the sort order. */
+export type RfiPriority = "low" | "normal" | "high" | "urgent";
+
+/** Which design discipline owns the answer. */
+export type RfiDiscipline =
+  | "architectural"
+  | "structural"
+  | "civil"
+  | "geotech"
+  | "mechanical"
+  | "electrical"
+  | "other";
 
 export type RfiStatus =
   | "draft" // drafted, not yet sent (e.g. queued to submit with the bid)
@@ -329,12 +433,65 @@ export interface Rfi {
   /** Flags the RFI as a likely change order once answered. */
   costImpactLikely?: boolean;
   linkedChangeOrderId?: string;
-  /** Mock attachment names for field-raised RFIs. */
+  /** Mock attachment names for field-raised RFIs (legacy — prefer attachments). */
   photoRefs?: string[];
+
+  // ── Depth: distribution, urgency, references, paper trail ──
+  priority?: RfiPriority;
+  discipline?: RfiDiscipline;
+  /** Who owes the answer — the GC / AOR it's directed to (free text). */
+  directedTo?: string;
+  /** Whose move it is right now. */
+  ballInCourt?: BallInCourt;
+  /** Response-by date — what the chase is measured against. */
+  responseNeededBy?: string; // ISO
+  /** Spec section reference, e.g. "04 22 00". */
+  specRef?: string;
+  /** Our suggested answer, sent with the RFI to speed the turnaround. */
+  proposedAnswer?: string;
+  /** Field's rough read on the dollars / days at stake. */
+  costImpactEstimate?: number;
+  scheduleImpactDays?: number;
+  attachments?: Attachment[];
+  /** Manually-logged notes; lifecycle events are derived, not stored. */
+  activity?: ActivityEvent[];
 }
 
 /** Where a Change Order originated. `fieldTM` = auto-populated from a T&M ticket. */
 export type CoOrigin = "rfi" | "fieldTM" | "manual";
+
+/** Why the work is extra to contract — drives the GC's review and our analytics. */
+export type CoReason =
+  | "ownerRequest"
+  | "designChange"
+  | "unforeseen"
+  | "fieldCondition"
+  | "codeCompliance"
+  | "weather"
+  | "other";
+
+/** How the CO is priced — lump sum, time & material, or unit-price. */
+export type CoPricingMethod = "lumpSum" | "tm" | "unitPrice";
+
+/** A single line on the change-order cost breakdown. */
+export type CoCostCategory =
+  | "labor"
+  | "material"
+  | "equipment"
+  | "subcontractor"
+  | "other";
+
+export interface CoLineItem {
+  id: string;
+  category: CoCostCategory;
+  description: string;
+  /** Quantity × unit, or a flat amount — we keep it simple: an entered total. */
+  quantity?: number;
+  unit?: string;
+  unitCost?: number;
+  /** The line subtotal. If qty/unitCost are set, equals their product. */
+  amount: number;
+}
 
 export type CoStatus =
   | "draft" // raised, not yet costed
@@ -363,12 +520,35 @@ export interface ChangeOrder {
   createdAt: string; // ISO — aging is computed from here
   submittedAt?: string; // ISO
   status: CoStatus;
+  /**
+   * Headline value. When `lineItems` are present this is the computed roll-up
+   * (subtotal + markup); otherwise it's entered directly. Dashboards read this.
+   */
   costAmount?: number;
   scheduleImpactDays?: number;
   planRef?: string;
   approvedBy?: string;
   approvedAt?: string; // ISO
+  /** Mock attachment names (legacy — prefer attachments). */
   photoRefs?: string[];
+
+  // ── Depth: justification, pricing breakdown, distribution, paper trail ──
+  reason?: CoReason;
+  pricingMethod?: CoPricingMethod;
+  /** The cost breakdown. When set, drives `costAmount`. */
+  lineItems?: CoLineItem[];
+  /** Overhead & profit applied on top of the line subtotal, as a percent. */
+  markupPct?: number;
+  /** The GC / owner it's directed to for approval (free text). */
+  directedTo?: string;
+  ballInCourt?: BallInCourt;
+  /** Approval-by date — what the aging chase is measured against. */
+  responseNeededBy?: string; // ISO
+  /** Bumped on each resubmittal after a rejection. */
+  revision?: number;
+  attachments?: Attachment[];
+  /** Manually-logged notes; lifecycle events are derived, not stored. */
+  activity?: ActivityEvent[];
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -428,6 +608,19 @@ export interface ProjectPlan {
   summary?: string;
 }
 
+/**
+ * One line of a project's Schedule of Values — the priced breakdown that backs
+ * the single awarded contract value. Display-only at handoff: ops reads it to
+ * confirm the SOV matches the award before the job mobilizes.
+ */
+export interface SovLine {
+  id: string;
+  bidId: string;
+  description: string; // e.g. "Formwork — caissons & walls"
+  scheduledValue: number; // dollars
+  note?: string;
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 // Intake Pipeline — when plans are pulled into the Plan Room a bid runs through
 // an ordered sequence of intake steps. The system runs the "auto" steps on its
@@ -485,6 +678,7 @@ export interface AppState {
   taskTemplates: TaskTemplate[];
   bidDocuments: BidDocument[];
   extractions: Extraction[];
+  scopeItems: ScopeItem[];
   /** Completed intake-pipeline steps per bid (derived status from order + this). */
   intakeSteps: IntakeStepRun[];
   /** Optional pre-submission review meeting (attendees + notes) per bid. */
@@ -492,6 +686,7 @@ export interface AppState {
   procurementItems: ProcurementItem[];
   projectMilestones: ProjectMilestone[];
   projectPlans: Record<string, ProjectPlan>;
+  sovLines: SovLine[];
   rfis: Rfi[];
   changeOrders: ChangeOrder[];
   currentUserId: string;

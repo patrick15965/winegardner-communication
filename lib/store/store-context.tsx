@@ -6,6 +6,7 @@ import { createSeedState } from "@/lib/mock-data/seed";
 import { clearState, loadState, saveState } from "./persistence";
 import type {
   AppState,
+  AttachmentKind,
   BidStage,
   BidLikelihood,
   ChangeOrder,
@@ -21,9 +22,12 @@ import type {
   ProcurementStatus,
   ProjectPlan,
   Region,
+  Rfi,
   RfiOrigin,
   RfiStatus,
   Role,
+  ScopeItem,
+  ScopeStage,
   SignOffDecision,
   StandardCategory,
   TaskRecurrence,
@@ -121,6 +125,19 @@ interface StoreContextValue {
     step: IntakeStepKey,
     result?: string,
   ) => void;
+  // scope board
+  deriveScopeItems: (bidId: string) => void;
+  setScopeStage: (scopeItemId: string, stage: ScopeStage) => void;
+  updateScopeItem: (
+    scopeItemId: string,
+    patch: Partial<
+      Pick<
+        ScopeItem,
+        "disposition" | "quantity" | "assumption" | "productionRate" | "crewNote"
+      >
+    >,
+  ) => void;
+  promoteScopeToTension: (scopeItemId: string) => void;
   // active projects
   updateProcurementItem: (
     itemId: string,
@@ -157,11 +174,50 @@ interface StoreContextValue {
     subject: string;
     question: string;
     origin: RfiOrigin;
-    planRef?: string;
-    costImpactLikely?: boolean;
+    patch?: Partial<
+      Pick<
+        Rfi,
+        | "planRef"
+        | "specRef"
+        | "discipline"
+        | "priority"
+        | "directedTo"
+        | "responseNeededBy"
+        | "proposedAnswer"
+        | "costImpactLikely"
+        | "costImpactEstimate"
+        | "scheduleImpactDays"
+      >
+    >;
   }) => void;
+  updateRfi: (
+    rfiId: string,
+    patch: Partial<
+      Pick<
+        Rfi,
+        | "subject"
+        | "question"
+        | "planRef"
+        | "specRef"
+        | "discipline"
+        | "priority"
+        | "directedTo"
+        | "ballInCourt"
+        | "responseNeededBy"
+        | "proposedAnswer"
+        | "costImpactLikely"
+        | "costImpactEstimate"
+        | "scheduleImpactDays"
+      >
+    >,
+  ) => void;
   updateRfiStatus: (rfiId: string, status: RfiStatus) => void;
   answerRfi: (rfiId: string, answer: string, answeredBy: string) => void;
+  addRfiNote: (rfiId: string, body: string) => void;
+  addRfiAttachment: (
+    rfiId: string,
+    input: { name: string; kind: AttachmentKind; note?: string },
+  ) => void;
   convertRfiToCo: (rfiId: string) => void;
   addChangeOrder: (input: {
     bidId: string;
@@ -172,20 +228,46 @@ interface StoreContextValue {
     costAmount?: number;
     tmTicketRef?: string;
     planRef?: string;
+    patch?: Partial<
+      Pick<
+        ChangeOrder,
+        | "reason"
+        | "pricingMethod"
+        | "lineItems"
+        | "markupPct"
+        | "directedTo"
+        | "responseNeededBy"
+        | "scheduleImpactDays"
+      >
+    >;
   }) => void;
   updateChangeOrder: (
     coId: string,
     patch: Partial<
       Pick<
         ChangeOrder,
+        | "title"
         | "status"
         | "costAmount"
         | "scheduleImpactDays"
         | "approvedBy"
         | "approvedAt"
         | "description"
+        | "reason"
+        | "pricingMethod"
+        | "lineItems"
+        | "markupPct"
+        | "directedTo"
+        | "ballInCourt"
+        | "responseNeededBy"
+        | "revision"
       >
     >,
+  ) => void;
+  addCoNote: (coId: string, body: string) => void;
+  addCoAttachment: (
+    coId: string,
+    input: { name: string; kind: AttachmentKind; note?: string },
   ) => void;
   setCurrentUser: (personId: string) => void;
   resetDemo: () => void;
@@ -349,6 +431,18 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
           completedById: currentUserId,
           result,
         }),
+      deriveScopeItems: (bidId) =>
+        dispatch({ type: "DERIVE_SCOPE_ITEMS", bidId }),
+      setScopeStage: (scopeItemId, stage) =>
+        dispatch({ type: "SET_SCOPE_STAGE", scopeItemId, stage }),
+      updateScopeItem: (scopeItemId, patch) =>
+        dispatch({ type: "UPDATE_SCOPE_ITEM", scopeItemId, patch }),
+      promoteScopeToTension: (scopeItemId) =>
+        dispatch({
+          type: "PROMOTE_SCOPE_TO_TENSION",
+          scopeItemId,
+          raisedById: currentUserId,
+        }),
       updateProcurementItem: (itemId, patch) =>
         dispatch({ type: "UPDATE_PROCUREMENT_ITEM", itemId, patch }),
       addProcurementItem: (input) =>
@@ -380,14 +474,31 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
           subject: input.subject,
           question: input.question,
           origin: input.origin,
-          planRef: input.planRef,
-          costImpactLikely: input.costImpactLikely,
+          patch: input.patch,
           raisedById: currentUserId,
         }),
+      updateRfi: (rfiId, patch) =>
+        dispatch({ type: "UPDATE_RFI", rfiId, patch }),
       updateRfiStatus: (rfiId, status) =>
         dispatch({ type: "UPDATE_RFI_STATUS", rfiId, status }),
       answerRfi: (rfiId, answer, answeredBy) =>
         dispatch({ type: "ANSWER_RFI", rfiId, answer, answeredBy }),
+      addRfiNote: (rfiId, body) =>
+        dispatch({
+          type: "ADD_RFI_NOTE",
+          rfiId,
+          authorId: currentUserId,
+          body,
+        }),
+      addRfiAttachment: (rfiId, input) =>
+        dispatch({
+          type: "ADD_RFI_ATTACHMENT",
+          rfiId,
+          addedById: currentUserId,
+          name: input.name,
+          kind: input.kind,
+          note: input.note,
+        }),
       convertRfiToCo: (rfiId) =>
         dispatch({
           type: "CONVERT_RFI_TO_CO",
@@ -405,10 +516,27 @@ export function AppStoreProvider({ children }: { children: React.ReactNode }) {
           costAmount: input.costAmount,
           tmTicketRef: input.tmTicketRef,
           planRef: input.planRef,
+          patch: input.patch,
           raisedById: currentUserId,
         }),
       updateChangeOrder: (coId, patch) =>
         dispatch({ type: "UPDATE_CHANGE_ORDER", coId, patch }),
+      addCoNote: (coId, body) =>
+        dispatch({
+          type: "ADD_CO_NOTE",
+          coId,
+          authorId: currentUserId,
+          body,
+        }),
+      addCoAttachment: (coId, input) =>
+        dispatch({
+          type: "ADD_CO_ATTACHMENT",
+          coId,
+          addedById: currentUserId,
+          name: input.name,
+          kind: input.kind,
+          note: input.note,
+        }),
       setCurrentUser: (personId) =>
         dispatch({ type: "SET_CURRENT_USER", personId }),
       resetDemo: () => {

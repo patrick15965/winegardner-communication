@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
-import { Clock, Link2, Ticket, Pencil } from "lucide-react";
+import { Clock, Link2, Ticket, Pencil, ArrowRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,7 +61,12 @@ export function ChangeOrderRow({ co }: { co: ChangeOrder }) {
               <span className="font-mono text-xs text-muted-foreground">
                 {co.number}
               </span>
-              <span className="text-sm font-medium">{co.title}</span>
+              <Link
+                href={`/field/${co.bidId}/co/${co.id}`}
+                className="text-sm font-medium hover:underline"
+              >
+                {co.title}
+              </Link>
             </div>
             <p className="text-xs text-muted-foreground">
               {CO_ORIGIN_LABEL[co.origin]} · raised by {raisedBy?.name ?? "—"} ·{" "}
@@ -150,6 +156,16 @@ export function ChangeOrderRow({ co }: { co: ChangeOrder }) {
             onClick={() => setEditOpen(true)}
           >
             <Pencil className="size-3.5" /> Edit cost
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ml-auto gap-1.5 text-muted-foreground"
+            asChild
+          >
+            <Link href={`/field/${co.bidId}/co/${co.id}`}>
+              Open <ArrowRight className="size-3.5" />
+            </Link>
           </Button>
         </div>
       </CardContent>

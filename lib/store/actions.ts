@@ -1,8 +1,10 @@
 import type {
   AppState,
+  AttachmentKind,
   BidStage,
   BidLikelihood,
   ChangeOrder,
+  CoLineItem,
   CoOrigin,
   CommentKind,
   DocType,
@@ -13,8 +15,11 @@ import type {
   ProcurementItem,
   ProjectMilestone,
   ProjectPlan,
+  Rfi,
   RfiOrigin,
   RfiStatus,
+  ScopeItem,
+  ScopeStage,
   SignOffDecision,
   StandardCategory,
   Task,
@@ -150,6 +155,24 @@ export type Action =
       completedById: string;
       result?: string;
     }
+  // ── Scope board ──
+  | { type: "DERIVE_SCOPE_ITEMS"; bidId: string }
+  | { type: "SET_SCOPE_STAGE"; scopeItemId: string; stage: ScopeStage }
+  | {
+      type: "UPDATE_SCOPE_ITEM";
+      scopeItemId: string;
+      patch: Partial<
+        Pick<
+          ScopeItem,
+          | "disposition"
+          | "quantity"
+          | "assumption"
+          | "productionRate"
+          | "crewNote"
+        >
+      >;
+    }
+  | { type: "PROMOTE_SCOPE_TO_TENSION"; scopeItemId: string; raisedById: string }
   | {
       type: "UPDATE_PROCUREMENT_ITEM";
       itemId: string;
@@ -193,8 +216,43 @@ export type Action =
       question: string;
       origin: RfiOrigin;
       raisedById: string;
-      planRef?: string;
-      costImpactLikely?: boolean;
+      patch?: Partial<
+        Pick<
+          Rfi,
+          | "planRef"
+          | "specRef"
+          | "discipline"
+          | "priority"
+          | "directedTo"
+          | "responseNeededBy"
+          | "proposedAnswer"
+          | "costImpactLikely"
+          | "costImpactEstimate"
+          | "scheduleImpactDays"
+        >
+      >;
+    }
+  | {
+      type: "UPDATE_RFI";
+      rfiId: string;
+      patch: Partial<
+        Pick<
+          Rfi,
+          | "subject"
+          | "question"
+          | "planRef"
+          | "specRef"
+          | "discipline"
+          | "priority"
+          | "directedTo"
+          | "ballInCourt"
+          | "responseNeededBy"
+          | "proposedAnswer"
+          | "costImpactLikely"
+          | "costImpactEstimate"
+          | "scheduleImpactDays"
+        >
+      >;
     }
   | { type: "UPDATE_RFI_STATUS"; rfiId: string; status: RfiStatus }
   | {
@@ -202,6 +260,20 @@ export type Action =
       rfiId: string;
       answer: string;
       answeredBy: string;
+    }
+  | {
+      type: "ADD_RFI_NOTE";
+      rfiId: string;
+      authorId: string;
+      body: string;
+    }
+  | {
+      type: "ADD_RFI_ATTACHMENT";
+      rfiId: string;
+      addedById: string;
+      name: string;
+      kind: AttachmentKind;
+      note?: string;
     }
   | { type: "CONVERT_RFI_TO_CO"; rfiId: string; raisedById: string }
   | {
@@ -215,6 +287,18 @@ export type Action =
       costAmount?: number;
       tmTicketRef?: string;
       planRef?: string;
+      patch?: Partial<
+        Pick<
+          ChangeOrder,
+          | "reason"
+          | "pricingMethod"
+          | "lineItems"
+          | "markupPct"
+          | "directedTo"
+          | "responseNeededBy"
+          | "scheduleImpactDays"
+        >
+      >;
     }
   | {
       type: "UPDATE_CHANGE_ORDER";
@@ -222,14 +306,37 @@ export type Action =
       patch: Partial<
         Pick<
           ChangeOrder,
+          | "title"
           | "status"
           | "costAmount"
           | "scheduleImpactDays"
           | "approvedBy"
           | "approvedAt"
           | "description"
+          | "reason"
+          | "pricingMethod"
+          | "lineItems"
+          | "markupPct"
+          | "directedTo"
+          | "ballInCourt"
+          | "responseNeededBy"
+          | "revision"
         >
       >;
+    }
+  | {
+      type: "ADD_CO_NOTE";
+      coId: string;
+      authorId: string;
+      body: string;
+    }
+  | {
+      type: "ADD_CO_ATTACHMENT";
+      coId: string;
+      addedById: string;
+      name: string;
+      kind: AttachmentKind;
+      note?: string;
     }
   | { type: "SET_CURRENT_USER"; personId: string }
   | { type: "RESET"; state: AppState };

@@ -32,6 +32,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Badge } from "@/components/ui/badge";
 import { PersonAvatar } from "@/components/person-badge";
+import { StepContext } from "@/components/handoff/step-context";
 import { useAppStore } from "@/lib/store/store-context";
 import {
   handoffForBid,
@@ -44,7 +45,6 @@ import {
   TENSION_TYPE_ACCENT,
   TENSION_TYPE_LABEL,
   STANDARD_CATEGORY_LABEL,
-  currency,
 } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type {
@@ -64,7 +64,6 @@ type StepDef = {
   blurb: string;
   tensionTypes: TensionItemType[];
   standardCats: StandardCategory[];
-  showValue?: boolean;
 };
 
 const STEPS: StepDef[] = [
@@ -75,7 +74,6 @@ const STEPS: StepDef[] = [
       "Confirm the Schedule of Values matches the awarded contract and the pricing decisions carry over.",
     tensionTypes: ["contingency", "vendorQuote"],
     standardCats: [],
-    showValue: true,
   },
   {
     key: "scope",
@@ -320,16 +318,15 @@ export function HandoffSequence({ bid }: { bid: Bid }) {
                 <p className="text-sm text-muted-foreground">{current.blurb}</p>
               </CardHeader>
               <CardContent className="space-y-4">
-                {current.showValue && (
-                  <div className="rounded-md border p-3">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Awarded value
-                    </p>
-                    <p className="text-lg font-semibold tabular-nums">
-                      {currency(bid.value)}
-                    </p>
-                  </div>
-                )}
+                {/* The live artifact for this step — present while you review */}
+                <StepContext bid={bid} stepKey={current.key} />
+
+                <div className="flex items-center gap-2 pt-1">
+                  <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Confirm
+                  </span>
+                  <span className="h-px flex-1 bg-border" />
+                </div>
 
                 {/* Confirm / flag the agenda item(s) */}
                 {currentItems.map((item) => (
