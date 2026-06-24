@@ -1,12 +1,5 @@
+import { redirect } from "next/navigation";
+
 export default function Home() {
-  return (
-    <main className="flex flex-1 flex-col items-center justify-center gap-2 p-8">
-      <h1 className="text-2xl font-semibold tracking-tight">
-        Winegardner Communication
-      </h1>
-      <p className="text-muted-foreground">
-        Ops &amp; Estimating task and communication hub
-      </p>
-    </main>
-  );
+  redirect("/board");
 }
