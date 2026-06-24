@@ -1,0 +1,68 @@
+import type { StandardNote } from "@/lib/store/types";
+
+// The shared Estimating ↔ Ops knowledge feed. Seeded with real quotes/themes
+// from the interviews so estimators stop "bidding in a vacuum."
+export const standards: StandardNote[] = [
+  {
+    id: "std-block-lead",
+    authorId: "p-patrick",
+    body: "Block lead time is running 6 weeks right now — specialty/architectural units closer to 8. If a job kicks off inside that window we can't theoretically start on time. Flag it as an RFI during the bid, don't let pre-con assume the block is on site.",
+    createdAt: "2026-06-19T17:30:00.000Z",
+    trades: ["masonry"],
+    regions: ["CA"],
+    category: "leadTime",
+    acks: ["p-angel", "p-casey", "p-tucker"],
+  },
+  {
+    id: "std-capacity-aug",
+    authorId: "p-luke",
+    body: "Masonry crews are booked solid through end of August. If you're bidding work that starts in that window, bid it high — if we don't get it, no harm. We're already stacked.",
+    createdAt: "2026-06-20T15:00:00.000Z",
+    trades: ["masonry"],
+    regions: ["CA"],
+    category: "capacity",
+    acks: ["p-angel", "p-casey"],
+  },
+  {
+    id: "std-slumpblock-rate",
+    authorId: "p-patrick",
+    body: "Reality check on production: we estimate 130–140 units/day/mason on clean runs, but slump-block and cut-up walls are coming in around 100/day in the field. Don't estimate the ideal-state number on heavy-cut scope.",
+    createdAt: "2026-06-18T22:00:00.000Z",
+    trades: ["masonry"],
+    regions: ["CA"],
+    category: "productionRate",
+    acks: ["p-angel"],
+  },
+  {
+    id: "std-az-wage",
+    authorId: "p-casey",
+    body: "AZ expansion: prevailing wage rules differ — no automatic per-diem like the CA 90-mile DIR rule. Confirm county wage determination before pricing labor. We don't have a clean parameter set for AZ yet, so over-communicate assumptions.",
+    createdAt: "2026-06-21T16:00:00.000Z",
+    trades: ["masonry", "concrete"],
+    regions: ["AZ", "NV"],
+    category: "wage",
+    acks: ["p-rohilio"],
+    linkedBidId: "bid-mesa-tilt",
+  },
+  {
+    id: "std-sd-perdiem",
+    authorId: "p-luke",
+    body: "San Diego jobs: $100/day per diem kicks in for anything 90+ miles. Allocate it for the full crew Nov–Dec. Rate goes up in 2027.",
+    createdAt: "2026-06-17T18:00:00.000Z",
+    trades: ["masonry", "concrete"],
+    regions: ["CA"],
+    category: "wage",
+    acks: ["p-angel", "p-casey"],
+    linkedBidId: "bid-sd-cmu",
+  },
+  {
+    id: "std-scope-sov",
+    authorId: "p-tucker",
+    body: "Estimators: please build the SOV before handoff and red-tag exclusions on the scope sheet. When ops has to reconstruct the SOV after award it turns into a nightmare and we miss captured cost.",
+    createdAt: "2026-06-16T19:00:00.000Z",
+    trades: ["masonry", "concrete"],
+    regions: ["CA"],
+    category: "general",
+    acks: ["p-angel"],
+  },
+];
